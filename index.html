@@ -67,7 +67,6 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
   </header>
   <div class="stage" id="stage">
     <canvas id="cv"></canvas>
-    <div class="panel guide"><h2>Biomes · predator speed</h2><div id="guide"></div></div>
     <div class="panel board"><h2>Net worth</h2><div id="board"></div></div>
     <div class="banner" id="banner"></div>
     <div class="toasts" id="toasts"></div>
@@ -90,24 +89,32 @@ const RAR=[
  {n:'Rare',c:'#4fb3ff',price:120,inc:5,hatch:8,mon:'Fizzwing'},
  {n:'Epic',c:'#b77bff',price:500,inc:18,hatch:12,mon:'Glumbo'},
  {n:'Legendary',c:'#ffb020',price:2000,inc:70,hatch:18,mon:'Sunscale'},
- {n:'Mythic',c:'#ff4d8d',price:8000,inc:260,hatch:25,mon:'Voidmoth'}];
+ {n:'Mythic',c:'#ff4d8d',price:8000,inc:260,hatch:25,mon:'Voidmoth'},
+ {n:'Enchanted',c:'#6dffd6',price:30000,inc:900,hatch:32,mon:'Glimmerkin'},
+ {n:'Abyssal',c:'#2fa8ff',price:110000,inc:3000,hatch:40,mon:'Tidefin'},
+ {n:'Summit',c:'#f2f6ff',price:400000,inc:10000,hatch:50,mon:'Frostcrown'}];
 const BIOMES=[
  {name:'Meadow',ground:'#7cc45a',sky:'#a8dcef',pred:'Fox',pc:'#e8742a',speed:5.5},
  {name:'Forest',ground:'#3d7a3a',sky:'#8fc4b5',pred:'Wolf',pc:'#6f747d',speed:8.5},
  {name:'Desert',ground:'#e3c37a',sky:'#f4dcae',pred:'Scorpion',pc:'#a8432a',speed:11},
  {name:'Tundra',ground:'#e9f1f6',sky:'#c9def0',pred:'Snow leopard',pc:'#cfd6de',speed:14},
- {name:'Volcano',ground:'#3a2a2a',sky:'#6a443c',pred:'Lava drake',pc:'#ff5a1f',speed:18}];
+ {name:'Volcano',ground:'#3a2a2a',sky:'#6a443c',pred:'Lava drake',pc:'#ff5a1f',speed:18},
+ {name:'Enchanted Forest',ground:'#3b3166',sky:'#40305f',pred:'Shadow stag',pc:'#2e2450',speed:22},
+ {name:'Under the Sea',ground:'#c9b98a',sky:'#0f5a80',pred:'Shark',pc:'#6c8394',speed:27,fog:[18,70]},
+ {name:'The Alps',ground:'#8cbf6a',sky:'#9fd2f5',pred:'Yeti',pc:'#eef2f5',speed:33}];
+const PATH_COL=['#a98c5e','#a98c5e','#a98c5e','#d7e2ea','#2a1c1c','#5d4a8a','#e6d9ab','#9a8f7a'];
 BIOMES.forEach((b,i)=>{b.z0=8+i*44;b.z1=b.z0+38;});
 const HOME_SKY='#b6e3f2';
-const TREAD_RATE=[0.15,0.3,0.6,1.1,2],TREAD_COST=[60,400,2000,9000];
-const START_SPEED=8,MAX_SPEED=30,CARRY_MULT=0.8;
-const XMAX=44,ZMIN=-33,ZMAX=BIOMES[4].z1+2;
+const TREAD_RATE=[0.15,0.3,0.6,1.1,2,3,4.2,5.6],TREAD_COST=[60,400,2000,9000,35000,120000,400000];
+const START_SPEED=8,MAX_SPEED=48,CARRY_MULT=0.8;
+const XMAX=44,ZMIN=-33,ZMAX=BIOMES[BIOMES.length-1].z1+2;
 
 // ---------- three setup ----------
 const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
 renderer.setPixelRatio(Math.min(2,devicePixelRatio||1));
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const scene=new THREE.Scene();scene.background=new THREE.Color(HOME_SKY);scene.fog=new THREE.Fog(HOME_SKY,55,130);
+const sways=[],floaters=[];
 const camera=new THREE.PerspectiveCamera(55,1,.1,400);
 scene.add(new THREE.HemisphereLight('#ffffff','#4a6a3a',.85));
 const sun=new THREE.DirectionalLight('#fff4dd',.85);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
@@ -132,7 +139,7 @@ plane(100,50,'#6fb04f',0,-18);
 plane(8,ZMAX+10,'#b89a6a',0,ZMAX/2-2,0.005);
 BIOMES.forEach((b,i)=>{
   plane(92,38,b.ground,0,(b.z0+b.z1)/2,0.01);
-  plane(8,38,i===4?'#2a1c1c':i===3?'#d7e2ea':'#a98c5e',0,(b.z0+b.z1)/2,0.02);
+  plane(8,38,PATH_COL[i],0,(b.z0+b.z1)/2,0.02);
   const sign=label(b.name.toUpperCase(),'#fff',1.6);sign.position.set(0,5,b.z0-1);scene.add(sign);
   for(let k=0;k<38;k++){const x=(rnd()*2-1)*44,z=b.z0+rnd()*38;if(Math.abs(x)<6)continue;
     if(i===0){if(rnd()<.6)mesh('sph',['#ff6fa8','#ffe066','#ffffff'][k%3],.35,.35,.35,x,.35,z);else mesh('sph','#5aa344',1.2,.9,1.2,x,.6,z);}
@@ -140,7 +147,29 @@ BIOMES.forEach((b,i)=>{
     if(i===2){if(rnd()<.5){mesh('cyl','#4f9a4a',.45,3,.45,x,1.5,z);mesh('cyl','#4f9a4a',.3,1.2,.3,x+.7,2,z);}else mesh('sph','#c9a35a',2.4,.7,1.8,x,.2,z);}
     if(i===3){if(rnd()<.5)mesh('box','#a9dcf2',1.6,1.2+rnd()*1.6,1.6,x,.8,z,scene,{transparent:true,opacity:.8});else{mesh('cone','#f4f8fb',1.6,4.5,1.6,x,2.25,z);}}
     if(i===4){if(rnd()<.45){const l=mesh('cyl','#ff6a1f',1.4+rnd(),.06,1.4+rnd(),x,.04,z,scene,{emissive:'#ff4a00',emissiveIntensity:.9});l.castShadow=false;}else mesh('cone','#2a1e1e',1.5,1.5+rnd()*2.5,1.5,x,1.2,z);}
+    if(i===5){const r=rnd();
+      if(r<.4){const cap=['#ff7ad9','#6dffd6','#9d8cff'][k%3],h=.6+rnd()*1.4;mesh('cyl','#efe6ff',.18+h*.08,h,.18+h*.08,x,h/2,z);
+        mesh('sph',cap,.6+h*.4,.35+h*.15,.6+h*.4,x,h,z,scene,{emissive:cap,emissiveIntensity:.55});}
+      else if(r<.8){const h=5+rnd()*3,tr=new THREE.Group();tr.position.set(x,0,z);scene.add(tr);
+        const t1=mesh('cyl','#3a2550',.35,h*.55,.35,0,h*.27,0,tr);t1.rotation.z=.12;const t2=mesh('cyl','#3a2550',.28,h*.5,.28,.3,h*.7,0,tr);t2.rotation.z=-.2;
+        const lc=rnd()<.5?'#c07bff':'#5ff3d2';[[0,h,0,1.9],[.9,h*.92,.5,1.3],[-.8,h*.95,-.4,1.4]].forEach(([a,b2,c2,r2])=>mesh('sph',lc,r2,r2*.8,r2,a,b2,c2,tr,{emissive:lc,emissiveIntensity:.25}));}
+      else{const f=mesh('sph','#fff6a8',.09,.09,.09,x,1+rnd()*2.5,z,scene,{emissive:'#fff27a',emissiveIntensity:1.5});f.castShadow=false;f.userData={y0:f.position.y,ph:rnd()*6,kind:'fly'};floaters.push(f);}}
+    if(i===6){const r=rnd();
+      if(r<.35){const g2=new THREE.Group();g2.position.set(x,0,z);scene.add(g2);const h=2.5+rnd()*3.5;
+        for(let q=0;q<3;q++){const w=mesh('cyl','#3f9a5a',.12,h,.12,(q-1)*.25,h/2,0,g2);}g2.userData={ph:rnd()*6};sways.push(g2);}
+      else if(r<.7){const cc=['#ff7a6b','#ffb347','#ff5fa8','#b58bff'][k%4];
+        if(rnd()<.5)for(let q=0;q<4;q++){const br=mesh('cyl',cc,.18,1.4+rnd(),.18,x+(rnd()-.5),.8,z+(rnd()-.5));br.rotation.z=(rnd()-.5)*.9;br.rotation.x=(rnd()-.5)*.9;}
+        else mesh('sph',cc,1+rnd()*.6,.7,1+rnd()*.6,x,.35,z);}
+      else if(r<.82)mesh('sph','#7a8a8a',1.4+rnd(),.9,1.2+rnd(),x,.3,z);
+      else{const bb=mesh('sph','#dff6ff',.12+rnd()*.12,.12,.12,x,rnd()*8,z,scene,{transparent:true,opacity:.45});bb.castShadow=false;bb.scale.y=bb.scale.x;bb.userData={kind:'bubble',sp:.8+rnd()*1.2,x0:x,ph:rnd()*6};floaters.push(bb);}}
+    if(i===7){const r=rnd();
+      if(r<.45){const h=4+rnd()*3;mesh('cyl','#5a3e26',.25,1.2,.25,x,.6,z);[0,1,2].forEach(q=>mesh('cone','#24553a',1.6-q*.4,h*.45,1.6-q*.4,x,1+q*h*.25+h*.2,z));}
+      else if(r<.65)mesh('sph','#8c8f94',1+rnd(),.7+rnd()*.5,1+rnd(),x,.4,z);
+      else mesh('sph',['#ffffff','#ffd84a','#c98bff'][k%3],.22,.22,.22,x,.22,z);}
   }
+  if(i===7)[-1,1].forEach(sd=>{for(let q=0;q<4;q++){const mx=sd*(62+rnd()*14),mz=b.z0+q*10+rnd()*6,h=26+rnd()*18,w=14+rnd()*6;
+    mesh('cone','#7d8794',w,h,w,mx,h/2,mz);mesh('cone','#ffffff',w*.42,h*.42,w*.42,mx,h*.79+.05,mz);}});
+
 });
 
 // ---------- bases ----------
@@ -172,6 +201,9 @@ function makeMon(r){const g=new THREE.Group(),c=RAR[r].c,body=new THREE.Group();
   if(r===1||r===4)[-1,1].forEach(s=>{const w=mesh('sph',r===4?'#2b1030':c,.6,.05,.34,s*.9,1.1,-.1,body,r===4?{emissive:'#ff4d8d',emissiveIntensity:.4}:{});w.rotation.z=s*.4;});
   if(r===2)mesh('cone','#ffe9a8',.25,.7,.25,0,1.95,.1,body);
   if(r===3)for(let k=0;k<8;k++){const a=k/8*Math.PI*2;const s=mesh('cone','#fff2a8',.14,.4,.14,Math.cos(a)*.85,.9,Math.sin(a)*.85,body);s.rotation.z=-Math.cos(a)*1.4;s.rotation.x=Math.sin(a)*1.4;}
+  if(r===5){[-1,1].forEach(s=>{const a=mesh('cyl','#bfffee',.04,.6,.04,s*.25,1.8,0,body);a.rotation.z=-s*.35;mesh('sph','#ffffff',.12,.12,.12,s*.38,2.1,0,body,{emissive:'#6dffd6',emissiveIntensity:1.2});});}
+  if(r===6){mesh('cone','#1f6fd6',.18,.7,.5,0,1.75,-.1,body);[-1,1].forEach(s=>{const f=mesh('sph','#1f6fd6',.45,.08,.25,s*.75,.85,0,body);f.rotation.z=s*.5;});const t=mesh('cone','#1f6fd6',.35,.55,.12,0,.9,-.85,body);t.rotation.x=-Math.PI/2;}
+  if(r===7){for(let k=0;k<5;k++){const a=k/5*Math.PI*2;mesh('cone','#9fdcff',.09,.45,.09,Math.cos(a)*.35,1.75,Math.sin(a)*.35,body,{emissive:'#7fd8ff',emissiveIntensity:.6});}mesh('cyl','#ffd84a',.42,.12,.42,0,1.58,0,body,{emissive:'#ffb000',emissiveIntensity:.3});}
   body.userData.bob=Math.random()*6;bobbers.push(body);return g;}
 function makeItem(it){return it.hatched?makeMon(it.r):makeEgg(it.r);}
 // ---- smooth model kit: per-pixel shaded materials, capsule limbs, jointed rigs ----
@@ -207,13 +239,13 @@ function makeChar(col,look){
   part(HAIR_GEO,hairM,head,0,.02,-.015,.205,.25,.225).rotation.x=-.32;
   ell(skin,head,.035,.055,.03,-.19,0,0);ell(skin,head,.035,.055,.03,.19,0,0);
   ell(skin,head,.032,.045,.04,0,-.03,.2);
-  [-1,1].forEach(s=>{ell(matS('#ffffff',{roughness:.3}),head,.04,.045,.02,s*.075,.035,.175);ell(EYE_IDLE,head,.022,.026,.012,s*.075,.033,.192);
+  const eyes=[];[-1,1].forEach(s=>{ell(matS('#ffffff',{roughness:.3}),head,.04,.045,.02,s*.075,.035,.175);eyes.push(ell(EYE_IDLE,head,.022,.026,.012,s*.075,.033,.192));
     ell(hairM,head,.05,.012,.015,s*.075,.095,.18);});
   ell(matS('#9a5a4a'),head,.045,.012,.01,0,-.11,.185);
   const arms=[-1,1].map(s=>{const sh=joint(torso,s*.34,.8,0);sh.rotation.z=s*.07;part(limbGeo(.085,.075,.38),shirt,sh);
     const elbow=joint(sh,0,-.42,0);part(limbGeo(.07,.058,.32),skin,elbow);ell(skin,elbow,.065,.085,.05,0,-.43,.01);return{sh,elbow};});
   const carry=joint(g,0,3.15,0);
-  g.userData={body,hips,torso,head,legs,arms,carry};scene.add(g);return g;}
+  g.userData={body,hips,torso,head,legs,arms,carry,eyes};scene.add(g);return g;}
 function animChar(u,ph,a,t){
   u.legs.forEach((L,i)=>{const p=ph+(i?Math.PI:0),sn=Math.sin(p);
     L.hip.rotation.x=-sn*.6*a;L.knee.rotation.x=a*(.12+1.05*Math.max(0,Math.cos(p)));L.ankle.rotation.x=-L.hip.rotation.x*.3-L.knee.rotation.x*.45;});
@@ -248,7 +280,7 @@ function makeQuad(o){
     ell(k>=tn-(o.tail.tipN||1)&&o.tail.tip?matS(o.tail.tip,{roughness:.95}):fur,t,r,r,sl*.75,0,0,-sl*.5);tail.push(t);t=joint(t,0,0,-sl);}
   if(o.spots)for(let k=0;k<26;k++){const a=(Math.random()*2-1)*1.25,z=(Math.random()*2-1)*BL*.48;
     ell(matS(o.spots),body,.075,.075,.075,Math.sin(a)*gr*.93,Math.cos(a)*gr*.97,z);}
-  const u={body,head,legs,tail,eyes,wings:[],stride:L*2.6};g.userData=u;
+  const u={body,head,legs,tail,eyes,wings:[],stride:L*2.6,lieY:gr*.95};g.userData=u;
   if(o.extra)o.extra(g,u,{fur,bel,dk,body,head,gr,BL,hr});scene.add(g);return g;}
 function makeScorpion(){
   const g=new THREE.Group(),sh=matS('#8e3a1d',{roughness:.35}),dk=matS('#3b170c',{roughness:.35}),body=joint(g,0,.32,0);
@@ -283,9 +315,38 @@ const PRED_BUILD=[
      const shp=new THREE.Shape();shp.moveTo(0,0);shp.lineTo(2.1,.35);shp.lineTo(1.7,-.35);shp.lineTo(1.1,-.2);shp.lineTo(.7,-.75);shp.lineTo(.2,-.6);shp.lineTo(0,0);
      const wg=new THREE.ShapeGeometry(shp);
      [-1,1].forEach(s=>{const w=joint(k.body,s*k.gr*.6,k.gr*.75,k.BL*.2);const m=part(wg,wm,w,0,0,0,s,1,1);m.rotation.x=-Math.PI/2;u.wings.push({w,s});});}})];
-const PRED_SCALE=[.95,1.15,1.25,1.15,1.35];
-function makePred(i){const g=PRED_BUILD[i]();g.scale.setScalar(PRED_SCALE[i]);return g;}
+function makeShark(){
+  const g=new THREE.Group(),sk=matS('#6c8394',{roughness:.5}),bl=matS('#eef2f4',{roughness:.6}),body=joint(g,0,1.5,0);
+  ell(sk,body,.55,.6,1.6,0,0,0);ell(bl,body,.48,.4,1.45,0,-.25,.05);
+  ell(sk,body,.42,.42,.6,0,-.02,1.35);
+  const df=part(CONE,sk,body,0,.75,-.1,.12,.9,.5);df.rotation.x=-.35;
+  [-1,1].forEach(s=>{const f=ell(sk,body,.5,.06,.28,s*.6,-.3,.5);f.rotation.z=-s*.45;f.rotation.y=s*.4;});
+  const eyes=[-1,1].map(s=>ell(EYE_IDLE,body,.07,.07,.05,s*.33,.12,1.55));
+  ell(matS('#2a2f33',{roughness:.4}),body,.22,.04,.08,0,-.28,1.72);
+  const tail=[];let t=joint(body,0,0,-1.45);
+  for(let k=0;k<3;k++){ell(sk,t,.3-k*.08,.33-k*.08,.4,0,0,-.3);tail.push(t);t=joint(t,0,0,-.5);}
+  const up=part(CONE,sk,t,0,.45,-.1,.08,.9,.28);up.rotation.x=-.6;const dn=part(CONE,sk,t,0,-.3,-.05,.07,.55,.22);dn.rotation.x=Math.PI+.6;
+  g.userData={body,tail,eyes,legs:[],wings:[],stride:3,shark:true};scene.add(g);return g;}
+function makeYeti(){
+  const g=makeChar('#eef2f5',{skin:'#8da2b5',hair:'#f6f8fa',pants:'#e6ebef'}),u=g.userData,fur=matS('#f6f8fa',{roughness:1});
+  ell(fur,u.torso,.34,.2,.24,0,.9,0);[-1,1].forEach(s=>ell(fur,u.torso,.16,.14,.16,s*.33,.85,0));
+  u.arms.forEach(A=>ell(fur,A.elbow,.11,.14,.11,0,-.18,0));ell(fur,u.head,.16,.08,.1,0,.12,.13);
+  u.stride=1.5;u.biped=true;g.remove(u.carry);return g;}
+PRED_BUILD.push(
+ ()=>makeQuad({c:'#2e2450',belly:'#5a4a8a',muzzle:'#3d3270',dark:'#1c1533',legLen:.95,bodyLen:1.7,girth:.36,neckLen:.6,headR:.26,snout:.3,ear:.22,
+   tail:{n:3,r:.12,len:.4,tip:'#9dfcff',tipN:1,bushy:true,lift:.6},
+   extra:(g,u,k)=>{const glow=matS('#9dfcff',{emissive:'#5ff3ff',emissiveIntensity:1.1,roughness:.5});
+     [-1,1].forEach(s=>{const a=joint(k.head,s*k.hr*.35,k.hr*.85,-k.hr*.1);a.rotation.z=-s*.5;part(limbGeo(.045,.03,.7),glow,a,0,.7,0);
+       [[.25,.35,.7],[.45,.55,-.6],[.62,.3,.5]].forEach(([y,l,r])=>{const b2=joint(a,0,y,0);b2.rotation.z=r*s;b2.rotation.x=-.3;part(limbGeo(.03,.02,l),glow,b2,0,l,0);});});
+     for(let i=0;i<10;i++){const z=(Math.random()*2-1)*k.BL*.45,an=(Math.random()*2-1)*1.1;ell(glow,k.body,.06,.06,.06,Math.sin(an)*k.gr*.93,Math.cos(an)*k.gr*.98,z);}}}),
+ makeShark,makeYeti);
+const PRED_SCALE=[.95,1.15,1.25,1.15,1.35,1.15,1.3,1.6];
+const ZZ_Y=[1.6,1.9,1.3,1.6,2,2.2,2.3,2.4];
+function makePred(i){const g=PRED_BUILD[i]();g.scale.setScalar(PRED_SCALE[i]);g.userData.zzY=ZZ_Y[i];return g;}
 function animPred(u,ph,a,t,hunting){
+  if(u.biped){animChar(u,ph,a,t);if(hunting)u.arms.forEach((A,i)=>{A.sh.rotation.x=-1.9+Math.sin(t*6+i)*.25;A.sh.rotation.z=(i?1:-1)*.35;});else u.arms.forEach((A,i)=>A.sh.rotation.z=(i?1:-1)*.07);return;}
+  if(u.shark){const w=t*(hunting?9:3.5);u.body.position.y=1.5+Math.sin(t*1.3)*.15;u.body.rotation.y=Math.sin(w)*.08;u.body.rotation.z=Math.sin(t*.9)*.05;
+    u.tail.forEach((s,k)=>s.rotation.y=Math.sin(w-k*.8)*(.25+.1*k));return;}
   if(u.scorp){u.legs.forEach(L=>{const p=ph+L.k*1.2+(L.s>0?Math.PI:0);L.hip.rotation.y=Math.sin(p)*.35*a;L.hip.rotation.x=Math.max(0,Math.cos(p))*-.2*a;});
     u.claws.forEach((c,i)=>{c.pin.rotation.z=(i?1:-1)*(.15+Math.max(0,Math.sin(t*(hunting?14:3)))*.4);c.arm.rotation.x=-1.35+Math.sin(ph)*.1*a;});
     u.tail.forEach((s,k)=>{s.rotation.y=Math.sin(t*2+k*.5)*.06;if(k>0)s.rotation.x=.5+(hunting?Math.max(0,Math.sin(t*5))*.15:0);});
@@ -305,7 +366,7 @@ const me=players[0];
 
 // ---------- light trail ----------
 const TRAIL_N=48,TRAIL_LIFE=.45,TRAIL_MIN=12;
-const TRAIL_TIERS=[[16,'#4fe3ff','cyan'],[21,'#b77bff','violet'],[26,'#ffd23f','gold'],[99,'#ff4d8d','pink']];
+const TRAIL_TIERS=[[16,'#4fe3ff','cyan'],[21,'#b77bff','violet'],[26,'#ffd23f','gold'],[32,'#ff4d8d','pink'],[99,'#f4fbff','white']];
 const trail={pts:[],geo:new THREE.BufferGeometry(),col:new THREE.Color(),tier:-1,unlocked:false};
 {const pos=new Float32Array(TRAIL_N*2*3),cols=new Float32Array(TRAIL_N*2*3),idx=[];
  for(let i=0;i<TRAIL_N-1;i++){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2);}
@@ -335,8 +396,10 @@ BIOMES.forEach((b,i)=>{
     const n={biome:i,x,z,egg:true,respawn:0,holder:new THREE.Group()};
     mesh('cyl','#8a6b3a',1.1,.3,1.1,x,.15,z);mesh('cyl','#c9a45e',.8,.32,.8,x,.17,z);
     n.holder.position.set(x,.2,z);n.holder.add(makeEgg(i));scene.add(n.holder);nests.push(n);});
-  const count=i<2?2:3;
-  for(let k=0;k<count;k++){const hx=(k-(count-1)/2)*26,hz=b.z0+19;preds.push({biome:i,hx,hz,x:hx,z:hz,tx:hx,tz:hz,target:null,wander:0,mesh:makePred(i),walk:0});}
+  const count=i<2?2:3,bn=nests.filter(n=>n.biome===i);
+  for(let k=0;k<count;k++){const n=bn[k],side=k%2?-1:1,hx=n.x+side*3.2,hz=n.z+1.2;
+    const zz=label('z Z z','#d6ecff',.9);scene.add(zz);
+    preds.push({biome:i,hx,hz,x:hx,z:hz,face:Math.random()*6.28,state:'sleep',sleep:1,wakeAt:0,target:null,mesh:makePred(i),walk:0,zz,zzPh:Math.random()*6});}
 });
 
 // ---------- save ----------
@@ -364,7 +427,11 @@ let bannerT=0;function banner(h,sub){const b=document.getElementById('banner');b
 
 // ---------- actions ----------
 function grabNest(p,n){p.carry={item:{r:n.biome,t:RAR[n.biome].hatch,hatched:false},from:n,kind:'nest'};n.egg=false;n.respawn=6+n.biome*3;
-  if(!p.ai)toast('Grabbed a '+RAR[n.biome].n+' egg. Run home!','good');}
+  let woke=0;preds.forEach(pr=>{if(pr.biome!==n.biome)return;if(pr.state==='sleep'||pr.state==='return'){pr.state='waking';pr.wakeAt=time+WAKE_DELAY;woke++;}if(!pr.target)pr.target=p;});
+  const nm=BIOMES[n.biome].pred.toLowerCase()+'s';
+  if(!p.ai)toast(woke?'You woke the '+nm+'! RUN!':'Grabbed a '+RAR[n.biome].n+' egg. Run home!','bad');
+  else if(biomeAt(me.z)===n.biome)toast(p.name+' woke the '+nm+'!','');}
+const WAKE_DELAY=1,AI_PACE=.35;
 function stealPed(p,ped){if(locked(ped.base)){if(!p.ai)toast(players[ped.base].name+"'s base is locked",'bad');return;}
   p.carry={item:ped.item,from:ped,kind:'ped'};ped.item=null;
   if(ped.base===0)toast(p.name+' grabbed your '+itemLabel(p.carry.item)+'! Chase them!','bad');
@@ -464,7 +531,7 @@ function aiThink(p){
     if(Math.random()<.3){const opts=pedestals.filter(q=>q.item&&q.base!==p.id&&!locked(q.base)).sort((x,y)=>itemValue(y.item)*(y.base===0?1.3:1)-itemValue(x.item)*(x.base===0?1.3:1));
       if(opts.length){p.state={type:'raid',ped:opts[Math.floor(Math.random()*Math.min(3,opts.length))]};return;}}
     const choice=nests.filter(n=>n.egg&&n.biome<=safeBiome).sort((x,y)=>y.biome-x.biome||Math.abs(x.x-p.x)-Math.abs(y.x-p.x))[0];
-    if(choice){p.state={type:'nest',n:choice};return;}}
+    if(choice&&Math.random()<AI_PACE+.15){p.state={type:'nest',n:choice};return;}}
   p.state={type:'idle',x:b.cx-6+Math.random()*12,z:-26+Math.random()*16};
 }
 function aiUpdate(p,dt){
@@ -484,20 +551,42 @@ function aiUpdate(p,dt){
 // ---------- predators ----------
 function predUpdate(pr,dt){
   const b=BIOMES[pr.biome],inZone=p=>p.z>b.z0-3&&p.z<b.z1+3&&p.safeUntil<time;
-  if(pr.target&&!inZone(pr.target))pr.target=null;
-  if(!pr.target){let best=null,bd=11+pr.biome;for(const p of players){if(!inZone(p))continue;const d=dist(p,pr);if(d<bd){bd=d;best=p;}}pr.target=best;
-    if(best===me)toast('A '+b.pred.toLowerCase()+' spotted you!','bad');}
-  let spd=b.speed;
-  if(pr.target){const t=pr.target;moveTo(pr,t.x,t.z,spd,dt);if(dist(pr,t)<1.3)caughtByPred(t,pr);}
-  else{pr.wander-=dt;if(pr.wander<=0){pr.wander=2+Math.random()*3;pr.tx=pr.hx+(Math.random()*2-1)*12;pr.tz=pr.hz+(Math.random()*2-1)*12;}
-    moveTo(pr,pr.tx,pr.tz,spd*.35,dt);}
+  const isThief=p=>p&&p.carry&&p.carry.kind==='nest'&&p.carry.from.biome===pr.biome&&inZone(p);
+  pr.moving=false;pr.v=0;
+  if(pr.state==='waking'||pr.state==='chase'){
+    if(!isThief(pr.target)){let best=null,bd=1e9;for(const p of players)if(isThief(p)){const d=dist(p,pr);if(d<bd){bd=d;best=p;}}pr.target=best;}
+    if(!pr.target)pr.state='return';
+    else if(pr.state==='waking'){pr.face=Math.atan2(pr.target.x-pr.x,pr.target.z-pr.z);if(time>=pr.wakeAt)pr.state='chase';}
+    else{const t=pr.target;moveTo(pr,t.x,t.z,b.speed,dt);if(dist(pr,t)<1.3){caughtByPred(t,pr);pr.target=null;pr.state='return';}}}
+  if(pr.state==='return'){moveTo(pr,pr.hx,pr.hz,b.speed*.3,dt);if(!pr.moving){pr.state='sleep';pr.target=null;}}
   pr.x=Math.max(-XMAX,Math.min(XMAX,pr.x));pr.z=Math.max(b.z0-2,Math.min(b.z1+2,pr.z));
   const m=pr.mesh,u=m.userData;m.position.set(pr.x,0,pr.z);
   const want=pr.moving?Math.min(1.3,.3+pr.v/12):0;pr.amt=(pr.amt||0)+(want-(pr.amt||0))*Math.min(1,dt*8);
   if(pr.moving)pr.walk+=pr.v*dt*Math.PI*2/(u.stride*PRED_SCALE[pr.biome]*(1+pr.v*.03));
-  m.rotation.y=lerpAng(m.rotation.y,pr.face||0,Math.min(1,dt*10));
-  animPred(u,pr.walk,pr.amt,time,!!pr.target);
-  u.eyes.forEach(e=>e.material=pr.target?EYE_HUNT:EYE_IDLE);
+  m.rotation.y=lerpAng(m.rotation.y,pr.face||0,Math.min(1,dt*(pr.state==='waking'?6:10)));
+  const hunting=pr.state==='waking'||pr.state==='chase';
+  animPred(u,pr.walk,pr.amt,time,hunting);
+  // blend toward the sleeping pose: fast to wake, slow to doze off
+  const sTarget=pr.state==='sleep'?1:0;pr.sleep+=(sTarget-pr.sleep)*Math.min(1,dt*(sTarget?1.5:7));
+  sleepPose(u,pr.sleep,time+pr.zzPh);
+  u.eyes.forEach(e=>{if(e.userData.sy===undefined)e.userData.sy=e.scale.y;e.scale.y=e.userData.sy*(pr.sleep>.6?.12:1);e.material=hunting?EYE_HUNT:EYE_IDLE;});
+  const zz=pr.zz;zz.visible=pr.sleep>.85;if(zz.visible){zz.position.set(pr.x,u.zzY*PRED_SCALE[pr.biome]+Math.sin(time*1.5+pr.zzPh)*.25,pr.z);zz.material.opacity=.55+Math.sin(time*2+pr.zzPh)*.35;}
+}
+const mix=(a,b,t)=>a+(b-a)*t;
+function sleepPose(u,s,t){
+  if(s<.001)return;const br=Math.sin(t*1.6)*.03*s;
+  if(u.biped){u.body.position.y=mix(u.body.position.y,-.62+br*.5,s);
+    u.legs.forEach(L=>{L.hip.rotation.x=mix(L.hip.rotation.x,-1.45,s);L.knee.rotation.x=mix(L.knee.rotation.x,1.45,s);L.ankle.rotation.x=mix(L.ankle.rotation.x,0,s);});
+    u.arms.forEach((A,i)=>{A.sh.rotation.x=mix(A.sh.rotation.x,-.55,s);A.sh.rotation.z=mix(A.sh.rotation.z,(i?1:-1)*.25,s);A.elbow.rotation.x=mix(A.elbow.rotation.x,-.9,s);});
+    u.torso.rotation.x=mix(u.torso.rotation.x,.3,s);u.torso.rotation.y=mix(u.torso.rotation.y,0,s);u.head.rotation.x=mix(u.head.rotation.x,.55,s);return;}
+  if(u.shark){u.body.position.y=mix(u.body.position.y,.75+br,s);u.body.rotation.z=mix(u.body.rotation.z,0,s);return;}
+  if(u.scorp){u.body.position.y=mix(u.body.position.y,.16,s);u.legs.forEach(L=>{L.hip.rotation.y=mix(L.hip.rotation.y,0,s);L.hip.rotation.x=mix(L.hip.rotation.x,.25,s);});
+    u.tail.forEach((q,k)=>{if(k>0)q.rotation.x=mix(q.rotation.x,.2,s);});return;}
+  u.body.position.y=mix(u.body.position.y,u.lieY+br,s);u.body.rotation.x=mix(u.body.rotation.x,0,s);
+  u.head.rotation.x=mix(u.head.rotation.x,.6,s);u.head.rotation.y=mix(u.head.rotation.y,.35,s);
+  u.legs.forEach(L=>{L.hip.rotation.x=mix(L.hip.rotation.x,L.front?-1.35:1.35,s);L.knee.rotation.x=mix(L.knee.rotation.x,0,s);});
+  u.tail.forEach((q,k)=>{q.rotation.y=mix(q.rotation.y,k?.35:.6,s);});
+  u.wings.forEach(W=>{W.w.rotation.z=mix(W.w.rotation.z,W.s*-.25,s);});
 }
 function moveTo(o,tx,tz,spd,dt){const dx=tx-o.x,dz=tz-o.z,d=Math.hypot(dx,dz);if(d<.3){o.moving=false;o.v=0;return;}const s=Math.min(d,spd*dt);o.x+=dx/d*s;o.z+=dz/d*s;
   o.face=Math.atan2(dx,dz);o.moving=true;o.v=s/dt;}
@@ -518,7 +607,7 @@ function update(dt){
     bases.forEach((b,i)=>{if(i!==p.id&&locked(i)&&inBase(p,b)){const l=p.x-b.x0,r=b.x1-p.x,t=p.z-b.z0,f=b.z1-p.z,mn=Math.min(l,r,t,f);
       if(mn===l)p.x=b.x0-.2;else if(mn===r)p.x=b.x1+.2;else if(mn===t)p.z=b.z0-.2;else p.z=b.z1+.2;}});
     if(p.carry&&inBase(p,bases[p.id]))place(p);
-    if(onTread(p)&&!p.carry){const gain=TREAD_RATE[p.tread]*dt*(1-p.speed/(MAX_SPEED+4));p.speed=Math.min(MAX_SPEED,p.speed+gain);p.training=true;}else p.training=false;
+    if(onTread(p)&&!p.carry){const gain=TREAD_RATE[p.tread]*dt*(1-p.speed/(MAX_SPEED+4))*(p.ai?AI_PACE:1);p.speed=Math.min(MAX_SPEED,p.speed+gain);p.training=true;}else p.training=false;
   });
   if(me.training&&time>trainNote){trainNote=time+20;toast('Training. Stay on the treadmill to get faster','good');}
   // thieves caught by base owners
@@ -555,6 +644,9 @@ function sync(dt){
   updateTrail();
   nests.forEach(n=>{n.holder.visible=n.egg;n.holder.rotation.z=Math.sin(time*3+n.x)*.08;});
   bobbers.forEach(b=>{b.position.y=Math.abs(Math.sin(time*3+b.userData.bob))*.3;});
+  sways.forEach(w=>{w.rotation.z=Math.sin(time*1.2+w.userData.ph)*.12;w.rotation.x=Math.cos(time*.9+w.userData.ph)*.08;});
+  floaters.forEach(f=>{const d=f.userData;if(d.kind==='fly'){f.position.y=d.y0+Math.sin(time*1.7+d.ph)*.5;f.position.x+=Math.sin(time*.8+d.ph)*.01;}
+    else{f.position.y+=d.sp*dt;f.position.x=d.x0+Math.sin(time*2+d.ph)*.3;if(f.position.y>9)f.position.y=0;}});
   bases.forEach((b,i)=>{b.dome.visible=locked(i);});
   // camera + sun
   const tx=me.x,tz=me.z,fx=Math.sin(cam.yaw),fz=Math.cos(cam.yaw),h=Math.cos(cam.pitch)*cam.dist;
@@ -564,6 +656,7 @@ function sync(dt){
   camera.lookAt(camTarget);
   sun.position.set(tx+20,40,tz-10);sun.target.position.set(tx,0,tz);
   const bi=biomeAt(me.z);tmpC.set(bi>=0?BIOMES[bi].sky:HOME_SKY);sky.lerp(tmpC,.03);scene.background.copy(sky);scene.fog.color.copy(sky);
+  const fg=bi>=0&&BIOMES[bi].fog||[55,130];scene.fog.near+=(fg[0]-scene.fog.near)*.04;scene.fog.far+=(fg[1]-scene.fog.far)*.04;
 }
 
 // ---------- HUD ----------
@@ -579,10 +672,7 @@ function hud(){
   else{btn.disabled=false;btn.textContent=a.type==='grab'?'Grab egg':a.type==='steal'?'Steal':a.type==='sell'?'Sell '+fmt(itemValue(a.ped.item)*.5):'Upgrade '+fmt(TREAD_COST[me.tread]);}
   const lb=$('lockBtn');if(me.lockUntil>time){lb.disabled=true;lb.textContent='Locked '+Math.ceil(me.lockUntil-time)+'s';}
   else if(me.lockCd>time){lb.disabled=true;lb.textContent='Ready in '+Math.ceil(me.lockCd-time)+'s';}else{lb.disabled=false;lb.textContent='Lock base';}
-  const carrySpd=me.speed*CARRY_MULT,here=biomeAt(me.z);
-  $('guide').innerHTML=BIOMES.map((b,i)=>`<div class="row ${carrySpd>b.speed?'safe':'risk'} ${i===here?'here':''}"><i style="background:${RAR[i].c}"></i>${b.name}<em>${b.speed}</em></div>`).join('')+
-    `<div class="row" style="color:var(--muted)">You, carrying<em style="color:var(--ink)">${carrySpd.toFixed(1)}</em></div>`;
-  $('board').innerHTML=[...players].sort((x,y)=>netWorth(y)-netWorth(x)).map(p=>`<div class="row"><i style="background:${p.color}"></i>${p.name}<em>${fmt(netWorth(p))}</em></div>`).join('');
+    $('board').innerHTML=[...players].sort((x,y)=>netWorth(y)-netWorth(x)).map(p=>`<div class="row"><i style="background:${p.color}"></i>${p.name}<em>${fmt(netWorth(p))}</em></div>`).join('');
 }
 
 let last=performance.now(),hudT=0;
